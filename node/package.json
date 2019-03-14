@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "format": "/node_modules/.bin/js-beautify -r *.js"
+    "format": "/node_modules/.bin/js-beautify -r *.js -r lib/*.js -r lib/**/*.js"
   },
   "author": "Akshil Verma",
   "license": "MIT",

@@ -1,20 +1,22 @@
 'use strict';
 
-const express = require('express');
 const bodyParser = require('body-parser');
+const express = require('express');
+const routes = require('./lib').routes;
 
 const app = express();
 
 const port = 3000;
 
+// Add middlewares here
 app.use(bodyParser.urlencoded({
   extended: false,
 }));
 app.use(bodyParser.json());
 
-app.get('/', (req, res) => {
-  res.status(200).send('done');
-});
+// Add routes here
+app.use('/api', routes.api);
+app.use('/v1', routes.v1);
 
 // Start the web server
 const listener = app.listen(process.env.PORT || port, () => {
