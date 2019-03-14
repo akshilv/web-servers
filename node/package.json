@@ -1,0 +1,21 @@
+{
+  "name": "node-web-server",
+  "version": "0.0.1",
+  "description": "Basic node web server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "format": "/node_modules/.bin/js-beautify -r *.js"
+  },
+  "author": "Akshil Verma",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.4"
+  },
+  "devDependencies": {
+    "eslint": "^5.15.1",
+    "eslint-config-google": "^0.12.0",
+    "js-beautify": "^1.9.0"
+  }
+}
