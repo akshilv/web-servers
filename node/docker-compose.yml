@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  web:
+    image: akshilv/web-server-node
+    build:
+      context: .
+      args:
+        APP_PORT: ${APP_PORT}
+    environment:
+      NODE_ENV: production
+    ports:
+      - ${HOST_MACHINE_PORT}:${APP_PORT}
