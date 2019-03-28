@@ -5,6 +5,7 @@ const apiController = require('../controller').apiController;
 
 const router = new express.Router();
 
-router.use('/ping', apiController.ping);
+router.route('/ping')
+    .get(apiController.ping);
 
 module.exports = router;
