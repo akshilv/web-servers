@@ -1,0 +1,6 @@
+{
+    "port": 5432,
+    "database": "web-server-db",
+    "user": "web-server-user",
+    "password": "web-server-password"
+}
