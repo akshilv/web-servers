@@ -8,6 +8,8 @@ set -e
 PROGNAME=$(basename "${0}")
 DOCKER_HUB_BASE_REPO="akshilv"
 LOCALHOST="127.0.0.1"
+CLEANUP_COMPONENTS=()
+CLEANUP_ALL="false"
 # Colors
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
@@ -58,24 +60,42 @@ error_msg () {
 # Returns:
 #   None
 ###################################
-success_msg() {
+success_msg () {
   echo -e "${GREEN}${1}${NC}"
 }
 
 #############################################
 # Cleanup containers running on local docker
 # Globals:
-#   None
+#   CLEANUP_COMPONENTS
+#   LINENO
 # Arguments:
 #   None
 # Returns:
 #   None
 #############################################
 cleanup () {
+  local indices
   echo -e "Starting clean up..."
-  # TODO: do something
+  indices=("${!CLEANUP_COMPONENTS[@]}")
+  if [[ ${#indices[@]} == 0 ]] ; then
+    error_msg "${LINENO} Nothing to cleanup"
+    exit 1
+  fi
+
+  # Cleanup in reverse order
+  for (( i = ${#indices[@]} -1; i > 0; i-- )) ; do
+    kill_web_server "${CLEANUP_COMPONENTS[indices[i]]}"
+  done
+  if [[ ${CLEANUP_COMPONENTS[0]} == "network" ]] ; then
+    delete_docker_network
+  fi
   echo -e "Clean up finished"
-  exit 1
+  if [[ ${CLEANUP_ALL} == "true" ]] ; then
+    exit 0
+  else
+    exit 1
+  fi
 }
 
 ###################################
@@ -96,9 +116,10 @@ create_docker_network () {
   if [[ -z "$(docker network create --driver=bridge --subnet=${SUBNET} \
     --ip-range=${IP_RANGE} --gateway=${GATEWAY} ${NETWORK_NAME})" ]] ; then
     error_msg "${LINENO} Could not create network ${NETWORK_NAME}"
-    cleanup
+    exit 1
   else
     success_msg "Successfully created network ${NETWORK_NAME}"
+    CLEANUP_COMPONENTS+=("network")
   fi
 }
 
@@ -114,10 +135,10 @@ create_docker_network () {
 ###########################
 delete_docker_network () {
   echo -e "Deleting the docker network ${NETWORK_NAME}..."
-  if [[ -z "$(docker network delete ${NETWORK_NAME})" ]] ; then
+  if [[ -z "$(docker network rm ${NETWORK_NAME})" ]] ; then
     error_msg "${LINENO} Could not delete docker network ${NETWORK_NAME}"
   else
-    echo -e "Successfully deleted docker network ${NETWORK_NAME}"
+    success_msg "Successfully deleted docker network ${NETWORK_NAME}"
   fi
 }
 
@@ -137,36 +158,36 @@ check_docker_exists () {
   echo -e "Checking whether docker is installed or not..."
   if [[ -z "$(type -p docker)" ]] ; then
     error_msg "${LINENO} Docker is not installed or requires sudo"
-    cleanup
+    exit 1
   else
     success_msg "Docker is installed"
   fi
 }
 
-#########################
-# Kills the pg container
+#################################
+# Kills the web server component
 # Globals:
 #   LINENO
-#   PG_NAME
+#   WS_NAME
 # Arguments:
-#   None
+#   $1 : Component name
 # Returns:
 #   None
-#########################
-# TODO: convert this to a generic kill container
-kill_web_server_pg () {
-  echo -e "Removing container for ${PG_NAME}"
-  if [[ -z "$(docker kill ${PG_NAME})" ]] ; then
-    error_msg "${LINENO} Failed to delete container ${PG_NAME}"
+#################################
+kill_web_server () {
+  populate_variables "${1}"
+  echo -e "Removing container for ${WS_NAME}"
+  if [[ -z "$(docker kill ${WS_NAME})" ]] ; then
+    error_msg "${LINENO} Failed to delete container ${WS_NAME}"
   else
-    echo -e "Successfully deleted container ${PG_NAME}"
+    success_msg "Successfully deleted container ${WS_NAME}"
   fi
 }
 
 #####################################################################################
 # Deploy all the web server components, after necessary checks, based on args passed
 # Globals:
-#   None
+#   CLEANUP_COMPONENTS
 # Arguments:
 #   $@
 # Returns:
@@ -178,8 +199,8 @@ deploy_web_server_component () {
     populate_variables "${component}"
     check_image_exists
     deploy "${component}"
+    CLEANUP_COMPONENTS+=("${component}")
   done
-
 }
 
 #########################################
@@ -210,6 +231,7 @@ deploy () {
   fi
   deploy_cmd="docker run --rm --name=${WS_NAME} --network=${NETWORK_NAME} \
       -p=${LOCALHOST}:${WS_PORT}:${WS_PORT} ${component_variable} -d ${WS_REPO}"
+
   echo -e "Deploying..."
   if [[ -z "$(${deploy_cmd})" ]] ; then
     error_msg "${LINENO} Deployment of ${WS_REPO} failed"
@@ -274,9 +296,65 @@ populate_variables () {
       WS_PORT=${PG_PORT}
       ;;
     *)
-      echo "Wrong input"
+      error_msg "${LINENO} Invalid component"
       ;;
     esac
+}
+
+########################
+# Prints usage
+# Globals:
+#   PROGNAME
+# Arguments:
+#   None
+# Returns:
+#   None
+########################
+show_usage () {
+  echo -e "Usage: ${PROGNAME} [-h] COMPONENT [COMPONENT...]\n
+Options:
+   -h                     show this help text
+   COMPONENT values:      (\"node\"|\"postgresql\")"
+}
+
+#####################################################
+# Checks whether the options passed are valid or not
+# Globals:
+#   None
+# Arguments:
+#   $@
+# Returns:
+#   None
+####################################################
+check_correct_options () {
+  if [[ ${#} == 0 ]] ; then
+    error_msg " No arguments passed"
+    show_usage
+    exit 1
+  fi
+
+  # Add options here
+  while getopts ':h:c' option; do
+    case "$option" in
+      h)
+        show_usage
+        exit 0
+        ;;
+      c)
+        echo -e "Starting to cleanup all"
+        # Add every web server component as part of the cleanup array
+        CLEANUP_COMPONENTS+=("network" "node" "postgresql")
+        CLEANUP_ALL="true"
+        cleanup
+        ;;
+      \?)
+        error_msg " Illegal option: -${OPTARG}"
+        show_usage 1>&2
+        exit 1
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1))
 }
 
 ###############################
@@ -289,9 +367,9 @@ populate_variables () {
 #   None
 ###############################
 main () {
+  check_correct_options "${@}"
   check_docker_exists
   create_docker_network
-  deploy_web_server_pg
   deploy_web_server_component "${@}"
 }
 
