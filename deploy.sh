@@ -98,6 +98,82 @@ cleanup () {
   fi
 }
 
+########################
+# Prints usage
+# Globals:
+#   PROGNAME
+# Arguments:
+#   None
+# Returns:
+#   None
+########################
+show_usage () {
+  echo -e "Usage: ./${PROGNAME} [-h] [-c] COMPONENT [COMPONENT...]\n
+Options:
+   -h                     show this help text'
+   -c                     clean up all components and the docker bridged network
+   COMPONENT values:      (\"node\"|\"postgresql\")"
+}
+
+#####################################################
+# Checks whether the options passed are valid or not
+# Globals:
+#   None
+# Arguments:
+#   $@
+# Returns:
+#   None
+####################################################
+check_correct_options () {
+  if [[ ${#} == 0 ]] ; then
+    error_msg " No arguments passed"
+    show_usage
+    exit 1
+  fi
+
+  # Add options here
+  while getopts ':hc' option; do
+    case "$option" in
+      h)
+        show_usage
+        exit 0
+        ;;
+      c)
+        echo -e "Starting to cleanup all"
+        # Add every web server component as part of the cleanup array
+        CLEANUP_COMPONENTS+=("network" "node" "postgresql")
+        CLEANUP_ALL="true"
+        cleanup
+        ;;
+      \?)
+        error_msg " Illegal option: -${OPTARG}"
+        show_usage 1>&2
+        exit 1
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+}
+
+############################################
+# Checks whether docker is installed or not
+# Globals:
+#   LINENO
+# Arguments:
+#   None
+# Returns:
+#   None
+############################################
+check_docker_exists () {
+  echo -e "Checking whether docker is installed or not..."
+  if [[ -z "$(type -p docker)" ]] ; then
+    error_msg "${LINENO} Docker is not installed or requires sudo"
+    exit 1
+  else
+    success_msg "Docker is installed"
+  fi
+}
+
 ###################################
 # Creates a bridged docker network
 # Globals:
@@ -145,45 +221,6 @@ delete_docker_network () {
 # generate_gateway() {
 # }
 
-############################################
-# Checks whether docker is installed or not
-# Globals:
-#   LINENO
-# Arguments:
-#   None
-# Returns:
-#   None
-############################################
-check_docker_exists () {
-  echo -e "Checking whether docker is installed or not..."
-  if [[ -z "$(type -p docker)" ]] ; then
-    error_msg "${LINENO} Docker is not installed or requires sudo"
-    exit 1
-  else
-    success_msg "Docker is installed"
-  fi
-}
-
-#################################
-# Kills the web server component
-# Globals:
-#   LINENO
-#   WS_NAME
-# Arguments:
-#   $1 : Component name
-# Returns:
-#   None
-#################################
-kill_web_server () {
-  populate_variables "${1}"
-  echo -e "Removing container for ${WS_NAME}"
-  if [[ -z "$(docker kill ${WS_NAME})" ]] ; then
-    error_msg "${LINENO} Failed to delete container ${WS_NAME}"
-  else
-    success_msg "Successfully deleted container ${WS_NAME}"
-  fi
-}
-
 #####################################################################################
 # Deploy all the web server components, after necessary checks, based on args passed
 # Globals:
@@ -201,6 +238,31 @@ deploy_web_server_component () {
     deploy "${component}"
     CLEANUP_COMPONENTS+=("${component}")
   done
+}
+
+#############################################
+# Check whether a docker image exists or not
+# Globals:
+#   WS_REPO
+#   LINENO
+# Arguments:
+#   $@
+# Returns:
+#   None
+#############################################
+check_image_exists () {
+  echo -e "Checking whether ${WS_REPO} image exists locally or not..."
+  if [[ -z "$(docker images -q ${WS_REPO})" ]]; then
+    echo -e "Image ${WS_REPO} does not exist, downloading..."
+    if [[ -z "$(docker pull ${WS_REPO})" ]] ; then
+      error_msg "${LINENO} Could not download ${WS_REPO}"
+      cleanup
+    else
+      success_msg "${WS_REPO} successfully downloaded"
+    fi
+  else
+    echo -e "Image ${WS_REPO} exists"
+  fi
 }
 
 #########################################
@@ -241,28 +303,23 @@ deploy () {
   fi
 }
 
-#############################################
-# Check whether a docker image exists or not
+#################################
+# Kills the web server component
 # Globals:
-#   WS_REPO
 #   LINENO
+#   WS_NAME
 # Arguments:
-#   $@
+#   $1 : Component name
 # Returns:
 #   None
-#############################################
-check_image_exists () {
-  echo -e "Checking whether ${WS_REPO} image exists locally or not..."
-  if [[ -z "$(docker images -q ${WS_REPO})" ]]; then
-    echo -e "Image ${WS_REPO} does not exist, downloading..."
-    if [[ -z "$(docker pull ${WS_REPO})" ]] ; then
-      error_msg "${LINENO} Could not download ${WS_REPO}"
-      cleanup
-    else
-      success_msg "${WS_REPO} successfully downloaded"
-    fi
+#################################
+kill_web_server () {
+  populate_variables "${1}"
+  echo -e "Removing container for ${WS_NAME}"
+  if [[ -z "$(docker kill ${WS_NAME})" ]] ; then
+    error_msg "${LINENO} Failed to delete container ${WS_NAME}"
   else
-    echo -e "Image ${WS_REPO} exists"
+    success_msg "Successfully deleted container ${WS_NAME}"
   fi
 }
 
@@ -299,62 +356,6 @@ populate_variables () {
       error_msg "${LINENO} Invalid component"
       ;;
     esac
-}
-
-########################
-# Prints usage
-# Globals:
-#   PROGNAME
-# Arguments:
-#   None
-# Returns:
-#   None
-########################
-show_usage () {
-  echo -e "Usage: ${PROGNAME} [-h] COMPONENT [COMPONENT...]\n
-Options:
-   -h                     show this help text
-   COMPONENT values:      (\"node\"|\"postgresql\")"
-}
-
-#####################################################
-# Checks whether the options passed are valid or not
-# Globals:
-#   None
-# Arguments:
-#   $@
-# Returns:
-#   None
-####################################################
-check_correct_options () {
-  if [[ ${#} == 0 ]] ; then
-    error_msg " No arguments passed"
-    show_usage
-    exit 1
-  fi
-
-  # Add options here
-  while getopts ':h:c' option; do
-    case "$option" in
-      h)
-        show_usage
-        exit 0
-        ;;
-      c)
-        echo -e "Starting to cleanup all"
-        # Add every web server component as part of the cleanup array
-        CLEANUP_COMPONENTS+=("network" "node" "postgresql")
-        CLEANUP_ALL="true"
-        cleanup
-        ;;
-      \?)
-        error_msg " Illegal option: -${OPTARG}"
-        show_usage 1>&2
-        exit 1
-        ;;
-    esac
-  done
-  shift $((OPTIND - 1))
 }
 
 ###############################
