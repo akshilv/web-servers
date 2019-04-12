@@ -44,9 +44,22 @@ trap 'cleanup' 2
 # Returns:
 #   None
 #################################
-error_msg()
-{
+error_msg () {
   echo -e "${RED}${PROGNAME}:${1:-" Unknown Error"}${NC}" 1>&2
+}
+
+###################################
+# Prints a colored success message
+# Globals:
+#   GREEN
+#   NC
+# Arguments:
+#   $1 - Success message
+# Returns:
+#   None
+###################################
+success_msg() {
+  echo -e "${GREEN}${1}${NC}"
 }
 
 #############################################
@@ -73,8 +86,6 @@ cleanup () {
 #   IP_RANGE
 #   GATEWAY
 #   LINENO
-#   GREEN
-#   NC
 # Arguments:
 #   None
 # Returns:
@@ -87,7 +98,7 @@ create_docker_network () {
     error_msg "${LINENO} Could not create network ${NETWORK_NAME}"
     cleanup
   else
-    echo -e "${GREEN}Successfully created network ${NETWORK_NAME}${NC}"
+    success_msg "Successfully created network ${NETWORK_NAME}"
   fi
 }
 
@@ -96,8 +107,6 @@ create_docker_network () {
 # Globals:
 #   NETWORK_NAME
 #   LINENO
-#   GREEN
-#   NC
 # Arguments:
 #   None
 # Returns:
@@ -108,7 +117,7 @@ delete_docker_network () {
   if [[ -z "$(docker network delete ${NETWORK_NAME})" ]] ; then
     error_msg "${LINENO} Could not delete docker network ${NETWORK_NAME}"
   else
-    echo -e "${GREEN}Successfully deleted docker network ${NETWORK_NAME}${NC}"
+    echo -e "Successfully deleted docker network ${NETWORK_NAME}"
   fi
 }
 
@@ -119,8 +128,6 @@ delete_docker_network () {
 # Checks whether docker is installed or not
 # Globals:
 #   LINENO
-#   GREEN
-#   NC
 # Arguments:
 #   None
 # Returns:
@@ -132,37 +139,7 @@ check_docker_exists () {
     error_msg "${LINENO} Docker is not installed or requires sudo"
     cleanup
   else
-    echo -e "${GREEN}Docker is installed${NC}"
-  fi
-}
-
-############################################
-# Checks whether docker is installed or not
-# Globals:
-#   PG_REPO
-#   LINENO
-#   GREEN
-#   NC
-#   PG_NAME
-#   NETWORK_NAME
-#   PG_HOST
-#   LOCALHOST
-#   PG_PORT
-# Arguments:
-#   None
-# Returns:
-#   None
-############################################
-# TODO: generalize this
-deploy_web_server_pg () {
-  echo -e "Deploying ${PG_REPO}..."
-  if [[ -z "$(docker run --rm --name=${PG_NAME} --network=${NETWORK_NAME} \
-    --ip=${PG_HOST} -p=${LOCALHOST}:${PG_PORT}:${PG_PORT} -d \
-    ${PG_REPO})" ]] ; then
-    error_msg "${LINENO} Deployment of ${PG_REPO} failed"
-    cleanup
-  else
-    echo -e "${GREEN}Deployment of ${PG_REPO} succeeded${NC}"
+    success_msg "Docker is installed"
   fi
 }
 
@@ -170,8 +147,6 @@ deploy_web_server_pg () {
 # Kills the pg container
 # Globals:
 #   LINENO
-#   GREEN
-#   NC
 #   PG_NAME
 # Arguments:
 #   None
@@ -184,33 +159,51 @@ kill_web_server_pg () {
   if [[ -z "$(docker kill ${PG_NAME})" ]] ; then
     error_msg "${LINENO} Failed to delete container ${PG_NAME}"
   else
-    echo -e "${GREEN}Successfully deleted container ${PG_NAME}${NC}"
+    echo -e "Successfully deleted container ${PG_NAME}"
   fi
 }
 
-###################################################
-# Deploy web server component based on args passed
+#####################################################################################
+# Deploy all the web server components, after necessary checks, based on args passed
 # Globals:
 #   None
 # Arguments:
 #   $@
 # Returns:
 #   None
-###################################################
+#####################################################################################
 deploy_web_server_component () {
-  for i in "${@}" ; do
-    echo -e "Deploying web server component for ${i}"
-    populate_variables "${i}"
-    echo "after pop ${WS_NAME} ${WS_REPO}"
-    deploy
+  for component in "${@}" ; do
+    echo -e "Deploying web server component for ${component}"
+    populate_variables "${component}"
+    check_image_exists
+    deploy "${component}"
   done
 
 }
 
+#########################################
+# Deploy a web server component
+# Globals:
+#   WS_NAME
+#   WS_REPO
+#   WS_PORT
+#   PG_NAME
+#   PG_REPO
+#   PG_PORT
+#   PG_HOST
+#   NETWORK_NAME
+#   LOCALHOST
+#   LINENO
+# Arguments:
+#   $1: component that is to be deployed
+# Returns:
+#   None
+#########################################
 deploy () {
   local deploy_cmd component_variable
   # Change the component_variable based on the type of component is to be deployed
-  if [[ ${i} == "postgresql" && ${WS_NAME} == "${PG_NAME}" && ${WS_REPO} == "${PG_REPO}" && ${WS_PORT} == "${PG_PORT}" ]] ; then
+  if [[ ${1} == "postgresql" && ${WS_NAME} == "${PG_NAME}" && ${WS_REPO} == "${PG_REPO}" && ${WS_PORT} == "${PG_PORT}" ]] ; then
     component_variable="--ip=${PG_HOST}"
   else
     component_variable="-e=PGHOST=${PG_HOST}"
@@ -222,10 +215,20 @@ deploy () {
     error_msg "${LINENO} Deployment of ${WS_REPO} failed"
     cleanup
   else
-    echo -e "${GREEN}Deployment of ${WS_REPO} succeeded${NC}"
+    success_msg "Deployment of ${WS_REPO} succeeded"
   fi
 }
 
+#############################################
+# Check whether a docker image exists or not
+# Globals:
+#   WS_REPO
+#   LINENO
+# Arguments:
+#   $@
+# Returns:
+#   None
+#############################################
 check_image_exists () {
   echo -e "Checking whether ${WS_REPO} image exists locally or not..."
   if [[ -z "$(docker images -q ${WS_REPO})" ]]; then
@@ -234,13 +237,30 @@ check_image_exists () {
       error_msg "${LINENO} Could not download ${WS_REPO}"
       cleanup
     else
-      echo -e "${GREEN}${WS_REPO} successfully downloaded${NC}"
+      success_msg "${WS_REPO} successfully downloaded"
     fi
   else
     echo -e "Image ${WS_REPO} exists"
   fi
 }
 
+##################################
+# Populate global WS_* variables
+# Globals:
+#   WS_NAME
+#   WS_REPO
+#   WS_PORT
+#   NODE_NAME
+#   NODE_REPO
+#   NODE_PORT
+#   PG_NAME
+#   PG_REPO
+#   PG_PORT
+# Arguments:
+#   $1 : component to be deployed
+# Returns:
+#   None
+##################################
 populate_variables () {
   case ${1} in
     node)
@@ -264,14 +284,14 @@ populate_variables () {
 # Globals:
 #   None
 # Arguments:
-#   None
+#   $@
 # Returns:
 #   None
 ###############################
 main () {
-  # check_docker_exists
-  # create_docker_network
-  # deploy_web_server_pg
+  check_docker_exists
+  create_docker_network
+  deploy_web_server_pg
   deploy_web_server_component "${@}"
 }
 
