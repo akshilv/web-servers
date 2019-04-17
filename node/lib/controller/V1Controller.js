@@ -30,8 +30,8 @@ class V1Controller extends BaseController {
 
   /**
    * Get a user's details
-   * @param {object} req
-   * @param {object} res
+   * @param {object} req - The request object received
+   * @param {object} res - The response object to be sent
    */
   getUser(req, res) {
     console.log('get user');
@@ -47,8 +47,8 @@ class V1Controller extends BaseController {
 
   /**
    * Create a user
-   * @param {object} req
-   * @param {object} res
+   * @param {object} req - The request object received
+   * @param {object} res - The response object to be sent
    */
   createUser(req, res) {
     console.log('create user');
@@ -69,8 +69,8 @@ class V1Controller extends BaseController {
 
   /**
    * Delete a user
-   * @param {object} req
-   * @param {object} res
+   * @param {object} req - The request object received
+   * @param {object} res - The response object to be sent
    */
   deleteUser(req, res) {
     console.log('delete user');
@@ -91,8 +91,8 @@ class V1Controller extends BaseController {
 
   /**
    * Update details of a user
-   * @param {object} req
-   * @param {object} res
+   * @param {object} req - The request object received
+   * @param {object} res - The response object to be sent
    */
   updateUser(req, res) {
     console.log('update user');
