@@ -1,6 +1,5 @@
 <template>
-  <div class="home">
-    <h1>Login Page</h1>
+  <div style="height:100%">
     <LoginUser/>
   </div>
 </template>
@@ -10,7 +9,7 @@
 import LoginUser from '@/components/LoginUser.vue';
 
 export default {
-  name: 'Login',
+  name: 'login',
   components: {
     LoginUser,
   },

@@ -1,13 +1,11 @@
 <template>
-  <div>
-    <div>
-      <router-link to="/">Home</router-link> |
-      <router-link to="/login">Login</router-link>
-    </div>
+  <v-app>
     <router-view/>
-  </div>
+  </v-app>
 </template>
 
 <style>
-
+html {
+  font-family: Roboto;
+}
 </style>
